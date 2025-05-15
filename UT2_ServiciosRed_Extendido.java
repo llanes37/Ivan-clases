@@ -1,167 +1,200 @@
-import java.io.*;                              // 📦 Para I/O de sockets
-import java.net.*;                             // 🌐 Para clases de red
-import java.util.*;                            // 📚 Colecciones y utilidades
-import java.util.concurrent.*;                // 🔄 Pools y concurrencia
-import com.sun.net.httpserver.HttpServer;     // 📡 Servidor HTTP embebido
+import java.io.*;                              // 📦 Entrada/Salida estándar de Java
+import java.net.*;                             // 🌐 Clases para programación de red (Socket, ServerSocket, etc.)
+import java.util.*;                            // 📚 Estructuras de datos como List, Scanner, Collections
+import java.util.concurrent.*;                // 🔄 Manejo de hilos (ExecutorService)
+import com.sun.net.httpserver.HttpServer;     // 📡 Servidor HTTP embebido propio de Java
 
 /**
  * 📖 TEORÍA UT2: SERVICIOS DE RED Y CONCURRENCIA AVANZADA
  * ======================================================
- * En la práctica profesional, es habitual:
- *  • Atender múltiples clientes en un servidor web o de chat.
- *  • Exponer APIs REST para integración de sistemas.
- *  • Gestionar conexiones TCP/IP y HTTP.
- *  • Asegurar la coherencia de datos compartidos entre hilos.
+ * Objetivos:
+ *  - Entender comunicación cliente-servidor con TCP, HTTP y UDP.
+ *  - Crear servidores concurrentes en Java.
+ *  - Practicar I/O de sockets y servidores HTTP embebidos.
  *
- * Conceptos clave:
- *  1️⃣ Socket: punto de comunicación entre cliente y servidor.
- *  2️⃣ ServerSocket/Socket: clases base de Java para TCP.
- *  3️⃣ HTTP Server: servidor web embebido (com.sun.net.httpserver).
- *  4️⃣ Concurrencia: atender conexiones en hilos o pools.
- *  5️⃣ Broadcast: enviar datos a múltiples clientes (chat).
- *  6️⃣ Sincronización: evitar race conditions con synchronized o colecciones concurrentes.
- *  7️⃣ ExecutorService: alternativa eficiente a crear hilos manualmente.
- *  8️⃣ UDP: comunicación sin conexión, útil para logs y streaming.
- *
- * La teoría se complementa con las demos y ejercicios abajo.
+ * 🔍 TCP vs UDP:
+ *  ▪️ TCP: conexión fiable, ordenada; ideal para chats y APIs.
+ *  ▪️ UDP: rápido, sin conexión; ideal para streaming y logs.
  */
 public class UT2_ServiciosRed_Extendido {
 
     /**
      * 🔧 DEMO 1: Servidor TCP concurrente (Echo Server)
-     *    • Tipo de servidor: TCP concurrente
-     *    • Descripción: atiende conexiones en puerto definido y devuelve eco de cada línea recibida.
-     *    • Pruebas: se puede probar con cliente Telnet o Netcat:
-     *      - telnet localhost 5000
-     *      - nc localhost 5000
-     *      Luego enviar texto y ver la respuesta "Echo: <texto>".
+     * -----------------------------------------------
+     * ✅ ¿QUÉ HACE?
+     * - Escucha en el puerto indicado (5000).
+     * - Acepta múltiples clientes simultáneamente.
+     * - Por cada mensaje recibido, responde con "Echo: <mensaje>".
+     *
+     * 🧪 ¿CÓMO PROBARLO?
+     * 1. Ejecutar esta demo (opción 1 en el menú).
+     * 2. Conectar con telnet o netcat: telnet localhost 5000
+     * 3. Escribir texto y verificar eco.
+     *
+     * 🎓 APRENDIZAJE:
+     * - Clase ServerSocket y Socket.
+     * - Flujo de texto con BufferedReader y PrintWriter.
+     * - Concurrencia con hilos (Thread).
+     *
+     * 🎯 EJERCICIOS:
+     * - Cambiar prefijo "Echo:" a otro personalizado.
+     * - Limitar número máximo de clientes.
      */
     static class ServidorTCP extends Thread {
-        private final int puerto;
-        public ServidorTCP(int puerto) {
-            this.puerto = puerto;
-        }
+        private final int puerto;  // 🔢 Puerto donde escucha el servidor.
+        public ServidorTCP(int puerto) { this.puerto = puerto; } // ⚙️ Constructor.
         @Override
         public void run() {
-            try (ServerSocket server = new ServerSocket(puerto)) {
+            try (ServerSocket server = new ServerSocket(puerto)) { // 🔒 Abre socket de servidor.
                 System.out.println("[ServidorTCP] Escuchando en puerto " + puerto);
-                while (true) {
-                    Socket cliente = server.accept();
-                    new Thread(() -> manejarCliente(cliente)).start();
+                while (true) { // 🔁 Bucle para aceptar clientes.
+                    Socket cliente = server.accept(); // 🛎️ Espera conexión.
+                    new Thread(() -> manejarCliente(cliente)).start(); // 🧵 Atiende cliente en hilo.
                 }
             } catch (IOException e) {
-                System.out.println("[ServidorTCP] Error: " + e.getMessage());
+                System.err.println("[ServidorTCP] Error: " + e.getMessage()); // 📛 Error.
             }
         }
         private static void manejarCliente(Socket socket) {
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+            try (
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream())); // 📥 Lector.
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true) // 📤 Escritor.
+            ) {
                 String linea;
-                while ((linea = in.readLine()) != null) {
+                while ((linea = in.readLine()) != null) { // 🔄 Lee hasta fin de stream.
                     System.out.println("[ServidorTCP] Recibido: " + linea);
-                    out.println("Echo: " + linea);
+                    out.println("Echo: " + linea); // 🔄 Envía eco.
                 }
             } catch (IOException e) {
-                System.out.println("[ServidorTCP] Cliente desconectado.");
+                System.out.println("[ServidorTCP] Cliente desconectado."); // ⚠️ Cliente terminó.
             }
         }
     }
 
     /**
      * 🔧 DEMO 2: Cliente TCP de prueba
-     *    • Tipo de cliente: TCP simple
-     *    • Descripción: conecta al servidor TCP en el puerto indicado y envía tres mensajes de prueba.
-     *    • Pruebas: ejecutar este hilo tras iniciar ServidorTCP para ver intercambio de mensajes.
+     * --------------------------------
+     * ✅ ¿QUÉ HACE?
+     * - Conecta a localhost:5000.
+     * - Envía 3 mensajes: "Mensaje 1", "Mensaje 2", "Mensaje 3".
+     * - Pausa 1 segundo entre envíos.
+     * - Muestra envío y respuesta.
+     *
+     * 🎓 APRENDIZAJE:
+     * - Conexión con Socket.
+     * - Uso de PrintWriter y BufferedReader.
+     * - Control de flujo con Thread.sleep().
+     *
+     * 🎯 EJERCICIOS:
+     * - Modificar a 10 mensajes.
+     * - Leer mensajes desde teclado.
      */
     static class ClienteTCP extends Thread {
-        private final int puerto;
-        public ClienteTCP(int puerto) {
-            this.puerto = puerto;
-        }
+        private final int puerto;  // 🔢 Puerto destino.
+        public ClienteTCP(int puerto) { this.puerto = puerto; } // ⚙️ Constructor.
         @Override
         public void run() {
-            try (Socket socket = new Socket("localhost", puerto);
-                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-                for (int i = 1; i <= 3; i++) {
-                    String msg = "Mensaje " + i;
-                    System.out.println("[ClienteTCP] Enviando: " + msg);
-                    out.println(msg);
-                    String resp = in.readLine();
-                    System.out.println("[ClienteTCP] Recibe: " + resp);
-                    Thread.sleep(1000);
+            try (
+                Socket socket = new Socket("localhost", puerto); // ⚡ Conecta al servidor.
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true); // 📤 Salida.
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream())) // 📥 Entrada.
+            ) {
+                for (int i = 1; i <= 3; i++) { // 🔁 Envía 3 mensajes.
+                    String msg = "Mensaje " + i; // 📝 Construye mensaje.
+                    System.out.println("[ClienteTCP] Enviando: " + msg); // 🖨 Imprime.
+                    out.println(msg); // ✉️ Envía.
+                    String resp = in.readLine(); // 📥 Espera respuesta.
+                    System.out.println("[ClienteTCP] Recibe: " + resp); // 🖨 Imprime.
+                    Thread.sleep(1000); // 💤 Pausa 1s.
                 }
             } catch (IOException | InterruptedException e) {
-                System.out.println("[ClienteTCP] Error: " + e.getMessage());
+                System.err.println("[ClienteTCP] Error: " + e.getMessage()); // 📛 Error.
             }
         }
     }
 
     /**
-     * 🔧 DEMO 3: Servidor HTTP simple (Echo API)
-     *    • Tipo de servidor: HTTP embebido
-     *    • Descripción: expone un endpoint /echo que devuelve los parámetros de la query.
-     *    • Pruebas: usar navegador, curl o Thunder Client:
-     *      - http://localhost:8000/echo?msg=hola
-     *      - curl "http://localhost:8000/echo?msg=hola"
+     * 🔧 DEMO 3: Servidor HTTP embebido (Echo API)
+     * --------------------------------------------
+     * ✅ ¿QUÉ HACE?
+     * - Levanta HTTP en puerto 8000.
+     * - Endpoint /echo devuelve los parámetros de la URL.
+     *
+     * 🧪 PRUEBAS:
+     * curl "http://localhost:8000/echo?msg=test"
+     * Navegador: /echo?msg=hola
+     *
+     * 🎓 APRENDIZAJE:
+     * - Uso de HttpServer sin frameworks.
+     * - Manejo de query string.
+     *
+     * 🎯 EJERCICIOS:
+     * - Añadir endpoint POST JSON.
+     * - Validar ausencia de parámetros (400).
      */
     static class ServidorHttpSimple extends Thread {
         @Override
         public void run() {
             try {
-                HttpServer http = HttpServer.create(new InetSocketAddress(8000), 0);
-                http.createContext("/echo", exchange -> {
-                    String query = exchange.getRequestURI().getQuery();
-                    String resp = "Echo HTTP: " + (query == null ? "" : query);
-                    exchange.sendResponseHeaders(200, resp.length());
+                HttpServer http = HttpServer.create(new InetSocketAddress(8000), 0); // 🔌 Abre HTTP.
+                http.createContext("/echo", exchange -> { // 🛠 Define ruta.
+                    String query = exchange.getRequestURI().getQuery(); // 🧾 Lee query.
+                    String resp = "Echo HTTP: " + (query == null ? "" : query); // 🪞 Prepara.
+                    exchange.sendResponseHeaders(200, resp.getBytes().length); // ✅ Responde 200.
                     try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(resp.getBytes());
+                        os.write(resp.getBytes()); // 📨 Envía cuerpo.
                     }
                 });
-                http.setExecutor(Executors.newFixedThreadPool(4));
-                http.start();
-                System.out.println("[HTTP] Servidor HTTP iniciado: http://localhost:8000/echo?msg=hola");
+                http.setExecutor(Executors.newFixedThreadPool(4)); // ♻️ Pool.
+                http.start(); // 🚀 Arranca.
+                System.out.println("[HTTP] Servidor iniciado en http://localhost:8000/echo?msg=hola");
             } catch (IOException e) {
-                System.out.println("[HTTP] Error: " + e.getMessage());
+                System.err.println("[HTTP] Error: " + e.getMessage()); // 📛 Error.
             }
         }
     }
 
     /**
-     * 🔧 DEMO 4: Chat en tiempo real con broadcast
-     *    • Tipo de servidor: TCP chat broadcast
-     *    • Descripción: acepta múltiples clientes y reenvía cada mensaje a todos.
-     *    • Pruebas: conectar varios ChatCliente o usar telnet/netcat a localhost:9000.
+     * 🔧 DEMO 4: Servidor de Chat TCP (Broadcast)
+     * -------------------------------------------
+     * ✅ ¿QUÉ HACE?
+     * - Escucha en puerto.
+     * - Cada mensaje de un cliente se reenvía a todos.
+     *
+     * 🎓 APRENDIZAJE:
+     * - Lista sincronizada.
+     * - Concurrencia en broadcast.
+     *
+     * 🎯 EJERCICIOS:
+     * - Ignorar mensajes vacíos.
+     * - Agregar timestamp a mensajes.
      */
     static class ChatServidor extends Thread {
         private final int puerto;
         private final List<PrintWriter> clientes = Collections.synchronizedList(new ArrayList<>());
-
-        public ChatServidor(int puerto) {
-            this.puerto = puerto;
-        }
+        public ChatServidor(int puerto) { this.puerto = puerto; }
         @Override
         public void run() {
             try (ServerSocket server = new ServerSocket(puerto)) {
-                System.out.println("[ChatServidor] Escuchando en puerto " + puerto);
+                System.out.println("[ChatServidor] Escuchando puerto " + puerto);
                 while (true) {
-                    Socket s = server.accept();
-                    new Thread(() -> manejarCliente(s)).start();
+                    Socket s = server.accept(); // 🛎 Cliente llega.
+                    new Thread(() -> manejarCliente(s)).start(); // 🧵 Atiende.
                 }
             } catch (IOException e) {
-                System.out.println("[ChatServidor] Error: " + e.getMessage());
+                System.err.println("[ChatServidor] Error: " + e.getMessage());
             }
         }
         private void manejarCliente(Socket socket) {
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-                clientes.add(out);
+            try (
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
+            ) {
+                clientes.add(out); // ➕ Agrega cliente.
                 String msg;
                 while ((msg = in.readLine()) != null) {
                     synchronized (clientes) {
-                        for (PrintWriter pw : clientes) {
-                            pw.println(msg);
-                        }
+                        for (PrintWriter pw : clientes) pw.println(msg); // 🔁 Broadcast.
                     }
                 }
             } catch (IOException e) {
@@ -171,7 +204,55 @@ public class UT2_ServiciosRed_Extendido {
     }
 
     /**
-     * 🧪 MAIN: Menú interactivo para elegir demo
+     * 🔧 DEMO 5: Cliente de Chat (Consola)
+     * ------------------------------------
+     * ✅ ¿QUÉ HACE?
+     * - Conecta a ChatServidor.
+     * - Lee teclado y envía mensajes.
+     * - Muestra mensajes de otros clientes.
+     *
+     * 🎓 APRENDIZAJE:
+     * - Cliente TCP con I/O concurrente.
+     * - Uso de hilos para leer socket y consola.
+     *
+     * 🎯 EJERCICIOS:
+     * - Evitar mensajes vacíos.
+     * - Mostrar solo mensajes de otros.
+     * - Añadir fecha/hora a mensajes.
+     */
+    static class ChatCliente extends Thread {
+        private final String nombre;
+        public ChatCliente(String nombre) { this.nombre = nombre; }
+        @Override
+        public void run() {
+            try (
+                Socket s = new Socket("localhost", 9000);
+                BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                PrintWriter out = new PrintWriter(s.getOutputStream(), true);
+                BufferedReader term = new BufferedReader(new InputStreamReader(System.in))
+            ) {
+                out.println(nombre + " se unió"); // 🚪 Anuncio.
+                // 🧵 Hilo para leer del socket.
+                new Thread(() -> {
+                    try {
+                        String line;
+                        while ((line = in.readLine()) != null) {
+                            System.out.println(line); // 🖨 Muestra mensaje.
+                        }
+                    } catch (IOException ignored) {}
+                }).start();
+                String input;
+                while ((input = term.readLine()) != null) {
+                    if (!input.isBlank()) out.println(nombre + ": " + input); // ✉️ Envia si no vacío.
+                }
+            } catch (IOException e) {
+                System.err.println("[ChatCliente] Error: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 🧪 MENÚ PRINCIPAL: Ejecuta demos según elección
      */
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -186,80 +267,22 @@ public class UT2_ServiciosRed_Extendido {
             System.out.println("6) Salir");
             System.out.print("Elige una opción: ");
             opcion = sc.nextInt();
-
             switch (opcion) {
-                case 1:
-                    System.out.println("Iniciando ServidorTCP...");
-                    new ServidorTCP(5000).start(); break;
-                case 2:
-                    System.out.println("Iniciando ClienteTCP...");
-                    new ClienteTCP(5000).start(); break;
-                case 3:
-                    System.out.println("Iniciando ServidorHttpSimple...");
-                    new ServidorHttpSimple().start(); break;
-                case 4:
-                    System.out.println("Iniciando ChatServidor...");
-                    new ChatServidor(9000).start(); break;
-                case 5:
-                    System.out.println("Iniciando ChatCliente...");
+                case 1 -> new ServidorTCP(5000).start();
+                case 2 -> new ClienteTCP(5000).start();
+                case 3 -> new ServidorHttpSimple().start();
+                case 4 -> new ChatServidor(9000).start();
+                case 5 -> {
                     sc.nextLine();
                     System.out.print("Nombre de usuario: ");
                     String nombre = sc.nextLine();
-                    new ChatCliente(nombre).start(); break;
-                case 6:
-                    System.out.println("Saliendo..."); break;
-                default:
-                    System.out.println("Opción no válida");
+                    new ChatCliente(nombre).start();
+                }
+                case 6 -> System.out.println("Saliendo...");
+                default -> System.out.println("Opción no válida");
             }
         } while (opcion != 6);
         sc.close();
         System.out.println("Programa terminado");
     }
-
-    /**
-     * 🔧 CLIENTE OPCIONAL para chat (consola interactiva)
-     */
-    static class ChatCliente extends Thread {
-        private final String nombre;
-        public ChatCliente(String nombre) {
-            this.nombre = nombre;
-        }
-        @Override
-        public void run() {
-            try (Socket s = new Socket("localhost", 9000);
-                 BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-                 PrintWriter out = new PrintWriter(s.getOutputStream(), true);
-                 BufferedReader term = new BufferedReader(new InputStreamReader(System.in))) {
-                out.println(nombre + " se unió");
-                new Thread(() -> {
-                    try {
-                        String line;
-                        while ((line = in.readLine()) != null) {
-                            System.out.println(line);
-                        }
-                    } catch (IOException ignored) {}
-                }).start();
-                String input;
-                while ((input = term.readLine()) != null) {
-                    out.println(nombre + ": " + input);
-                }
-            } catch (IOException e) {
-                System.out.println("[ChatCliente] Error: " + e.getMessage());
-            }
-        }
-    }
-
-    /*
-     * 🎯 EJERCICIOS UT2 (pequeñas tareas para reforzar):
-     * --------------------------------------------------
-     * 1️⃣ Cambia los puertos por variables de entorno y prueba.
-     * 2️⃣ Ajusta el número de mensajes enviados en ClienteTCP.
-     * 3️⃣ Extiende HTTP demo con POST y parseo JSON.
-     * 4️⃣ Valida mensajes en ChatServidor (no vacíos).
-     * 5️⃣ Añade elección de puerto en el menú para cada demo.
-     * 6️⃣ Implementa ExecutorService en lugar de crear hilos manuales.
-     * 7️⃣ Crea un cliente HTTP Java que consuma /echo.
-     * 8️⃣ Añade un demo UDP echo en la opción 7.
-     * 🔟 FINAL (sencillo): hilo que imprima "UT2 activo" cada 2s, 5 veces.
-     */
 }
