@@ -256,12 +256,101 @@ static void responder(HttpExchange ex, int status, String body) throws IOExcepti
 }
 
 /*
- * 🎯 EJERCICIOS PARA EL ALUMNO:
- * -----------------------------
- * 1️⃣ Añadir validación: que edad sea > 0 y nombre no vacío.
- * 2️⃣ Añadir campo "email" al alumno y simular validación.
- * 3️⃣ Crear ruta GET /alumnos/menores para filtrar menores de edad.
- * 4️⃣ Agregar persistencia: guardar alumnos en archivo .json.
- * 5️⃣ Crear ruta /alumnos/buscar?nombre= para filtrar por nombre.
- */
+ * 🧪 PRÁCTICA COMPLETA CON THUNDER CLIENT
+ * ----------------------------------------
+ * Puedes usar Visual Studio Code con la extensión Thunder Client
+ * para probar todos los endpoints de esta API REST.
 
+ * BASE URL: http://localhost:8080/alumnos
+
+ * 1️⃣ ✅ GET → Listar todos los alumnos
+ * - Método: GET
+ * - URL: http://localhost:8080/alumnos
+ * - Sin body
+
+ * 2️⃣ ✅ POST → Crear nuevo alumno
+ * - Método: POST
+ * - URL: http://localhost:8080/alumnos
+ * - Headers:
+ *     Content-Type: application/json
+ * - Body (JSON):
+   {
+     "nombre": "Lucía",
+     "edad": 21
+   }
+
+ * 3️⃣ ✅ GET → Obtener alumno por ID
+ * - Método: GET
+ * - URL: http://localhost:8080/alumnos/1
+
+ * 4️⃣ ✅ PUT → Modificar alumno por ID
+ * - Método: PUT
+ * - URL: http://localhost:8080/alumnos/1
+ * - Headers:
+ *     Content-Type: application/json
+ * - Body (JSON):
+   {
+     "nombre": "Lucía Gómez",
+     "edad": 22
+   }
+
+ * 5️⃣ ✅ DELETE → Eliminar alumno por ID
+ * - Método: DELETE
+ * - URL: http://localhost:8080/alumnos/1
+
+ * 📌 IMPORTANTE: Cada prueba se puede hacer desde Thunder Client o cURL.
+ * También puedes probar errores:
+ * - Obtener un ID que no existe → debe devolver 404.
+ * - Crear sin body → debe fallar con error 500 o 400.
+ * - Modificar con datos mal formateados → debe dar error.
+
+ * -------------------------------------------------------------
+ * 🎯 EJERCICIOS DE EXTENSIÓN CON CÓDIGO PARA PRACTICAR
+ * -------------------------------------------------------------
+
+ * ✏️ EJERCICIO 1: Agrega validación de edad y nombre
+ * - Dentro del método `crear()` y `actualizar()`, antes de guardar:
+   if (nuevo.getEdad() <= 0 || nuevo.getNombre().isEmpty()) {
+       responder(ex, 400, "Datos inválidos: nombre vacío o edad incorrecta");
+       return;
+   }
+
+ * ✏️ EJERCICIO 2: Añadir campo nuevo "email" en la clase Alumno
+ * - En la clase Alumno:
+   private String email;
+   // En los métodos toJson y fromJson, incluir también el email.
+ * - En el JSON:
+   {
+     "nombre": "Pedro",
+     "edad": 20,
+     "email": "pedro@email.com"
+   }
+
+ * ✏️ EJERCICIO 3: Crear nueva ruta GET /alumnos/menores
+ * - En el método main():
+   server.createContext("/alumnos/menores", UT4_ServidorAlumnos::listarMenores);
+
+ * - Luego añade el método:
+   static void listarMenores(HttpExchange ex) throws IOException {
+       StringBuilder sb = new StringBuilder("[");
+       for (Alumno a : bd.values()) {
+           if (a.getEdad() < 18) sb.append(a.toJson()).append(",");
+       }
+       if (sb.length() > 1) sb.setLength(sb.length() - 1);
+       sb.append("]");
+       responder(ex, 200, sb.toString());
+   }
+
+ * ✏️ EJERCICIO 4: Añadir persistencia con fichero JSON
+ * - Cada vez que se crea, modifica o elimina, escribir el mapa en archivo "alumnos.json":
+   Files.writeString(Path.of("alumnos.json"), json, StandardCharsets.UTF_8);
+
+ * ✏️ EJERCICIO 5: Buscar alumno por nombre
+ * - Crear nueva ruta `/alumnos/buscar?nombre=Juan`
+ * - Extraer parámetro de la query con:
+   String query = ex.getRequestURI().getQuery();
+ * - Filtrar el mapa por coincidencias parciales del nombre.
+
+ * 🧠 Con estas prácticas puedes repasar toda la lógica REST, validaciones, manejo de rutas y JSON sin usar frameworks externos.
+ * Aporta una base sólida para Spring Boot, Node.js o cualquier backend profesional.
+ */
